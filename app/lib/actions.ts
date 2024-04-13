@@ -6,6 +6,64 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
+import { getUser } from "./data";
+const bcrypt = require('bcrypt');
+
+async function signUp(formData: FormData) {
+    const userName = formData.get('userName');
+    const email = formData.get('email');
+    const password = formData.get('password');
+    const confirmPassword = formData.get('confirmPassword');
+    const parsedCredentials = z
+        .object({
+            userName: z.string().min(3),
+            email: z.string().email(),
+            password: z.string().min(6),
+            confirmPassword: z.string().min(6),
+        })
+        .refine(() => password === confirmPassword, {
+            message: "Passwords don't match"
+        })
+        .safeParse({ userName, email, password, confirmPassword });
+    if (parsedCredentials.success) {
+
+        const userExists = !!await getUser(parsedCredentials.data.email);
+        if (userExists) {
+            throw new Error('User with this email is already registered')
+        } else {
+            const parsedUserName = parsedCredentials.data.userName
+            const parsedEmail = parsedCredentials.data.email
+            const hashedPassword = await bcrypt.hash(parsedCredentials.data.password, 10);
+
+            try {
+                await sql`
+                    INSERT INTO users (name, email, password)
+                    VALUES (${parsedUserName}, ${parsedEmail}, ${hashedPassword})
+                `;
+            } catch (error) {
+                console.error('Database Error:', error);
+                throw new Error('something went wrong');
+            }
+        }
+    } else {
+        throw new Error(parsedCredentials.error.errors[0].message)
+    }
+}
+
+export async function register(
+    prevState: string | undefined,
+    formData: FormData
+) {
+    try {
+        await signUp(formData);
+    } catch (error) {
+        if (error instanceof Error) {
+            return error.message
+        }
+        return 'Something went wrong'
+    }
+    await signIn('credentials', formData)
+}
 
 export async function authenticate(
     prevState: string | undefined,

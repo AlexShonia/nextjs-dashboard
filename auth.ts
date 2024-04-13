@@ -9,7 +9,6 @@ import bcrypt from 'bcrypt';
 async function getUser(email: string): Promise<User | undefined> {
     try {
         const user = await sql<User>`SELECT * FROM users WHERE email=${email}`
-        console.log(user.rows[0]);
 
         return user.rows[0];
     } catch (error) {
@@ -18,7 +17,7 @@ async function getUser(email: string): Promise<User | undefined> {
     }
 }
 
-export const { auth, signIn, signOut  } = NextAuth({
+export const { auth, signIn, signOut } = NextAuth({
     ...authConfig,
     providers: [Credentials({
         async authorize(credentials) {
